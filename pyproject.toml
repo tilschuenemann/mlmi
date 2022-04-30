@@ -1,0 +1,64 @@
+[tool.poetry]
+name = "mlmi"
+version = "0.1.0"
+description = ""
+authors = ["Til Schuenemann"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pandas = "^1.4.2"
+tqdm = "^4.64.0"
+pymediainfo = "^5.1.0"
+langdetect = "^1.0.9"
+flake8 = "^4.0.1"
+pyproject-flake8 = "^0.0.1-alpha.4"
+mypy = "^0.950"
+tox = "^3.25.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.flake8]
+max-line-length = 100
+statistics = "True"
+
+[tool.mypy]
+mypy_path = "mlmi"
+check_untyped_defs = true
+disallow_any_generics = true
+ignore_missing_imports = true
+no_implicit_optional = true
+show_error_codes = true
+strict_equality = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unreachable = true
+warn_unused_configs = true
+no_implicit_reexport = true
+
+
+[tool.tox]
+legacy_tox_ini = """
+
+[tox]
+isolated_build = true
+envlist = py310, flake8, mypy
+
+[gh-actions]
+python =
+    3.10: py310, mypy, flake8
+
+[testenv:flake8]
+deps = flake8
+commands = flake8 mlmi
+
+[testenv:mypy]
+basepython = python3.10
+deps = mypy
+commands = mypy mlmi
+
+"""

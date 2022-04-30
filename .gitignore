@@ -1,0 +1,4 @@
+README.rst
+tests/
+.tox/
+.mypy_cache/
