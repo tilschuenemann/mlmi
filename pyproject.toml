@@ -46,15 +46,15 @@ legacy_tox_ini = """
 
 [tox]
 isolated_build = true
-envlist = py310, flake8, mypy
+envlist = py310, pyproject-flake8, mypy
 
 [gh-actions]
 python =
-    3.10: py310, mypy, flake8
+    3.10: py310, mypy, pyproject-flake8
 
-[testenv:flake8]
-deps = flake8
-commands = flake8 mlmi
+[testenv:pyproject-flake8]
+deps = pyproject-flake8
+commands = pflake8 mlmi
 
 [testenv:mypy]
 basepython = python3.10

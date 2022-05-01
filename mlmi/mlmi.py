@@ -7,7 +7,6 @@ import argparse
 import json
 import glob
 import pathlib
-import re
 
 
 def get_subtitle_data(input_path: str, sub_exts: list[str]) -> pd.DataFrame:
@@ -48,18 +47,20 @@ def get_subtitle_data(input_path: str, sub_exts: list[str]) -> pd.DataFrame:
 
         tmp = pd.DataFrame(
             {
-                "parent_folder": [str(pathlib.Path(sub).parent)],
-                "subtitles.s": [lang],
+                "parent": [str(pathlib.Path(sub).parent)],
+                "subtitle_files": [lang],
             }
         )
         df = pd.concat([df, tmp], axis=0)
 
-    df = df.groupby("parent_folder").agg({"subtitles.s": lambda x: list(x)})
-
+    df = df.groupby(["parent"]).agg({"subtitle_files": ",".join})
+    df = df.reset_index()
     return df
 
 
-def get_movie_data(input_folder: str, mov_exts: list[str]) -> pd.DataFrame:
+def get_mediainfo(
+    input_folder: str, mov_exts: list[str], output_folder: str = ""
+) -> dict[str, pd.DataFrame]:
     """
 
     Parameters
@@ -74,92 +75,107 @@ def get_movie_data(input_folder: str, mov_exts: list[str]) -> pd.DataFrame:
     pd.DataFrame
 
     """
-
     files = []
     for ext in mov_exts:
         tmp = glob.glob(input_folder + f"/**/*{ext}", recursive=True)
         files.extend(tmp)
 
-    df = pd.DataFrame()
+    videos = pd.DataFrame()
+    audios = pd.DataFrame()
+    subs = pd.DataFrame()
+    generals = pd.DataFrame()
 
-    for item in tqdm.tqdm(files, "Movies   "):
+    for item in tqdm.tqdm(files, desc="Movies   "):
+
         m_info = pymediainfo.MediaInfo.parse(item, output="JSON")
         m_info = json.loads(m_info)
 
-        movie_data = pd.DataFrame.from_dict(
-            {"file": [item], "parent_folder": [str(pathlib.Path(item).parent)]}
-        )
-        subtitles = []
-        audio_tracks = []
+        tmp1 = pd.DataFrame().from_dict({"item": [item]})
 
         for track in m_info["media"]["track"]:
-            if track["@type"] == "Video":
 
-                tmp = pd.DataFrame.from_dict(
-                    {
-                        "bitrate": [track.get("BitRate")],
-                        "height": [track.get("Height")],
-                        "width": [track.get("Width")],
-                        "display_ratio": [track.get("DisplayAspectRatio_String")],
-                        "framerate": [str(track.get("FrameRate"))],
-                    }
-                )
+            tmp2 = pd.json_normalize(track)
+            tmp = pd.concat([tmp1, tmp2], axis=1)
 
-                movie_data = pd.concat([movie_data, tmp], axis=1)
-
-                audio_tracks.append(track.get("Language"))
-                audio_tracks.append(track.get("Language_String"))
-                audio_tracks.append(track.get("Language_String1"))
-                audio_tracks.append(track.get("Language_String2"))
-                audio_tracks.append(track.get("Language_String3"))
-                audio_tracks.append(track.get("Language_String4"))
-
+            if track["@type"] == "General":
+                generals = pd.concat([generals, tmp], axis=0)
+            elif track["@type"] == "Video":
+                videos = pd.concat([videos, tmp], axis=0)
             elif track["@type"] == "Audio":
-
-                audio_tracks.append(track.get("Language"))
-                audio_tracks.append(track.get("Language_String"))
-                audio_tracks.append(track.get("Language_String1"))
-                audio_tracks.append(track.get("Language_String2"))
-                audio_tracks.append(track.get("Language_String3"))
-                audio_tracks.append(track.get("Language_String4"))
-
-            elif track["@type"] == "General":
-
-                audio_tracks.append(track.get("Video_Language_List"))
-                audio_tracks.append(track.get("Audio_Language_List"))
-
+                audios = pd.concat([audios, tmp], axis=0)
             elif track["@type"] == "Text":
+                subs = pd.concat([subs, tmp], axis=0)
 
-                sub = track.get("Language")
-                sub = "noname" if sub == "" else sub
+    outputs = {"general": generals, "video": videos, "audio": audios, "subtitles": subs}
 
-                subtitles.append(sub)
+    WRITE = True
+    if output_folder == "":
+        WRITE = False
 
-        audio_tracks = [
-            x for x in audio_tracks if x is not None and re.match(r"^[A-Za-z]{2}$", x)
-        ]
-        audio_tracks = list(set(audio_tracks))
+    if pathlib.Path(output_folder).exists() is False and WRITE:
+        output_folder = str(pathlib.Path(__file__).parent)
 
-        movie_data["audio_tracks"] = str(audio_tracks)
-        movie_data["subtitles.m"] = str(subtitles)
-        df = pd.concat([df, movie_data], axis=0)
+    if WRITE:
+        for name, df in outputs.items():
+            df.to_csv(
+                f"{output_folder}/{name}.csv", index=False, sep=";", encoding="UTF-8"
+            )
 
-    return df
+    return outputs
+
+
+def _list_langs(df: pd.DataFrame) -> pd.DataFrame:
+    """Helper function for aggregating the language column by joining its items."""
+    tmp = df[["item", "Language"]].copy()
+    tmp["parent"] = [pathlib.Path(x).parent for x in df["item"]]
+    tmp = tmp.astype({"Language": str, "parent": str})
+    tmp.drop("item", axis=1, inplace=True)
+    tmp = tmp.groupby(["parent"]).agg({"Language": ",".join})
+    return tmp
+
+
+def get_language_overview(
+    input_folder: str, mov_exts: list[str], sub_exts: list[str]
+) -> pd.DataFrame:
+    output = get_mediainfo(input_folder, mov_exts)
+    audio = output["audio"][["Language", "item"]]
+    subs = output["subtitles"][["Language", "item"]]
+
+    audio = _list_langs(audio)
+    subs = _list_langs(subs)
+
+    files = pd.DataFrame(pathlib.Path(input_folder).iterdir(), columns=["parent"])
+    files["parent"] = files["parent"].astype(str)
+
+    files = files.merge(audio, on="parent", how="left", suffixes=("", ".audio"))
+    files = files.merge(subs, on="parent", how="left", suffixes=("", ".subtitles"))
+    files.columns = ["parent", "audio", "subtitles"]
+
+    files["audio"] = files["audio"].fillna("")
+    files["audio"] = files["audio"].str.replace(r".?nan", "", regex=True)
+    files["subtitles"] = files["subtitles"].fillna("")
+
+    return files
 
 
 def main(
     input_folder: str, mov_exts, sub_exts, output_folder: str = ""
 ) -> pd.DataFrame:
-    mov_data = get_movie_data(input_folder, mov_exts)
-    sub_data = get_subtitle_data(input_folder, sub_exts)
-    # df = mov_data.join(sub_data, on="parent_folder", how="left")
-    df = mov_data.merge(sub_data, on="parent_folder", how="left")
 
-    if pathlib.Path(output_folder).exists() is False or output_folder == "":
+    mediainfo = get_language_overview(input_folder, mov_exts, sub_exts)
+    subtitle_files = get_subtitle_data(input_folder, sub_exts)
+    df = mediainfo.merge(subtitle_files, on="parent", how="left")
+    df["subtitle_files"] = df["subtitle_files"].fillna("")
+    df = df.sort_values("parent")
+
+    WRITE = True
+    if output_folder == "":
+        WRITE = False
+    if pathlib.Path(output_folder).exists() is False and WRITE:
         output_folder = str(pathlib.Path(__file__).parent)
 
-    df = df.sort_values("parent_folder")
-    # df.to_csv(f"{output_folder}/mmmi.csv", sep=";", index=False, encoding="UTF-8")
+    if WRITE:
+        df.to_csv(f"{output_folder}/mmmi.csv", sep=";", index=False, encoding="UTF-8")
     return df
 
 
