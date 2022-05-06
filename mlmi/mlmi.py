@@ -108,14 +108,14 @@ def get_mediainfo(
 
     outputs = {"general": generals, "video": videos, "audio": audios, "subtitles": subs}
 
-    WRITE = True
+    write = True
     if output_folder == "":
-        WRITE = False
+        write = False
 
-    if pathlib.Path(output_folder).exists() is False and WRITE:
+    if pathlib.Path(output_folder).exists() is False and write:
         output_folder = str(pathlib.Path(__file__).parent)
 
-    if WRITE:
+    if write:
         for name, df in outputs.items():
             df.to_csv(
                 f"{output_folder}/{name}.csv", index=False, sep=";", encoding="UTF-8"
@@ -168,13 +168,13 @@ def main(
     df["subtitle_files"] = df["subtitle_files"].fillna("")
     df = df.sort_values("parent")
 
-    WRITE = True
+    write = True
     if output_folder == "":
-        WRITE = False
-    if pathlib.Path(output_folder).exists() is False and WRITE:
+        write = False
+    if pathlib.Path(output_folder).exists() is False and write:
         output_folder = str(pathlib.Path(__file__).parent)
 
-    if WRITE:
+    if write:
         df.to_csv(f"{output_folder}/mmmi.csv", sep=";", index=False, encoding="UTF-8")
     return df
 
