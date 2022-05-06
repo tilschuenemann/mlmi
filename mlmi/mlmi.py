@@ -30,7 +30,7 @@ def get_subtitle_data(input_path: str, sub_exts: list[str]) -> pd.DataFrame:
 
     files = []
     for ext in sub_exts:
-        subs = glob.glob(input_path + f"/**/*{ext}", recursive=True)
+        subs = glob.glob(input_path + f"*/*{ext}", recursive=True)
         files.extend(subs)
 
     df = pd.DataFrame()
@@ -77,7 +77,7 @@ def get_mediainfo(
     """
     files = []
     for ext in mov_exts:
-        tmp = glob.glob(input_folder + f"/**/*{ext}", recursive=True)
+        tmp = glob.glob(input_folder + f"*/*{ext}", recursive=True)
         files.extend(tmp)
 
     videos = pd.DataFrame()
