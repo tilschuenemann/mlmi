@@ -10,14 +10,16 @@ import pathlib
 
 
 def get_subtitle_data(input_path: str, sub_exts: list[str]) -> pd.DataFrame:
-    """
+    """Scans input_path for subtitle files with the extension specified in
+    sub_exts. For each subtitle file the language is detected.
+    Movie folder and subtitle languages are stored and returned in a dataframe.
 
     Parameters
     -------
     input_path: str
-        directory to scan for subtitles
+        folder to parse
     sub_exts: list[str]
-        list of subtitle extensions to scan for
+        list of subtitle extensions
 
     Returns
     -------
@@ -61,15 +63,21 @@ def get_subtitle_data(input_path: str, sub_exts: list[str]) -> pd.DataFrame:
 def get_mediainfo(
     input_folder: str, mov_exts: list[str], output_folder: str = ""
 ) -> dict[str, pd.DataFrame]:
-    """
+    """Parses mediainfo for every movie with the specified mov_exts extensions
+    in the input_folder.
+    Only "general", "audio", "video" and "text" tracks are considered.
 
     Parameters
     -------
     input_folder: str
-        folder to
+        folder to parse
     mov_exts: list[str]
         list of video file extensions
-
+    output_folder: str
+        folder to write result to.
+        If no argument is specified, nothing gets written.
+        If the supplied folder doesn't exit, the result will be written to the
+        working directory.
     Returns
     -------
     pd.DataFrame
@@ -137,6 +145,23 @@ def _list_langs(df: pd.DataFrame) -> pd.DataFrame:
 def get_language_overview(
     input_folder: str, mov_exts: list[str], sub_exts: list[str]
 ) -> pd.DataFrame:
+    """For every movie folder in input_folder subtitle and audio track languages
+    get listed.
+
+    Parameters
+    -------
+    input_folder: str
+        folder to parse
+    mov_exts: list[str]
+        list of video file extensions
+    sub_exts: list[str]
+        list of subtitle file extensions
+
+    Returns
+    -------
+    pd.DataFrame
+        df featuring parent, audio and subtitle column
+    """
     output = get_mediainfo(input_folder, mov_exts)
     audio = output["audio"][["Language", "item"]]
     subs = output["subtitles"][["Language", "item"]]
@@ -159,7 +184,7 @@ def get_language_overview(
 
 
 def main(
-    input_folder: str, mov_exts, sub_exts, output_folder: str = ""
+    input_folder: str, mov_exts: list[str], sub_exts: list[str], output_folder: str = ""
 ) -> pd.DataFrame:
 
     mediainfo = get_language_overview(input_folder, mov_exts, sub_exts)
